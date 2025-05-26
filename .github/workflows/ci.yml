@@ -16,14 +16,11 @@ jobs:
     
     strategy:
       matrix:
-        ios-version: ['18.2', '17.2']
+        ios-version: ['18.2']
         include:
           - ios-version: '18.2'
             xcode-version: '16.1'
-            simulator: 'iPhone 15'
-          - ios-version: '17.2'
-            xcode-version: '16.1'
-            simulator: 'iPhone 14'
+            simulator: 'iPhone 16'
     
     steps:
     - name: Checkout code
