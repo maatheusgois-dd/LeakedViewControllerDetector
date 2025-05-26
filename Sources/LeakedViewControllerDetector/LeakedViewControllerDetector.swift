@@ -5,8 +5,8 @@
 //
 
 #if canImport(UIKit)
-import UIKit
 import Foundation
+import UIKit
 
 /**
  Automatically detects and warns you whenever a ViewController in your app closes and it or any of its (sub)views don't deinit.
