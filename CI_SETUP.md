@@ -13,8 +13,8 @@ The CI workflow (`.github/workflows/ci.yml`) provides comprehensive testing and 
 ### **Jobs Overview**
 
 #### 1. **Test Job** (`test`)
-- **Platform**: macOS-14 with Xcode 15.2
-- **Matrix Testing**: iOS 17.2 and 16.4
+- **Platform**: macOS-14 with Xcode 16.2
+- **Matrix Testing**: iOS 18.2 and 17.2
 - **Simulators**: iPhone 15 and iPhone 14
 - **Features**:
   - Swift Package Manager caching for faster builds
@@ -154,7 +154,7 @@ documentation (independent)
 
 ## 🔄 Maintenance
 
-- **Xcode Version**: Update in workflow when new versions are released
+- **Xcode Version**: Currently using Xcode 16.2 with Swift 6.0 support
 - **iOS Versions**: Update matrix when supporting new iOS versions
 - **Dependencies**: Keep SwiftFormat and SwiftLint updated
 - **Rules**: Review and update linting/formatting rules as needed
