@@ -4,7 +4,9 @@
 //  Created by Jan de Vries on 16/04/2022.
 //
 
+#if canImport(UIKit)
 import UIKit
+import Foundation
 
 /**
  Automatically detects and warns you whenever a ViewController in your app closes and it or any of its (sub)views don't deinit.
@@ -1034,3 +1036,5 @@ private extension String {
         return self
     }
 }
+
+#endif
