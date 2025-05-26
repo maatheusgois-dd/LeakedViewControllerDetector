@@ -1,5 +1,8 @@
 # LeakedViewControllerDetector for UIKit (iOS/tvOS)
 
+[![CI](https://github.com/YOUR_USERNAME/LeakedViewControllerDetector/workflows/CI/badge.svg)](https://github.com/YOUR_USERNAME/LeakedViewControllerDetector/actions)
+[![codecov](https://codecov.io/gh/YOUR_USERNAME/LeakedViewControllerDetector/branch/main/graph/badge.svg)](https://codecov.io/gh/YOUR_USERNAME/LeakedViewControllerDetector)
+[![Swift 6.0](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![UIKit only](https://img.shields.io/badge/UIKit-red)](https://swiftpackageindex.com/Janneman84/LeakedViewControllerDetector)
 [![Platform compatibility](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2FJanneman84%2FLeakedViewControllerDetector%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/Janneman84/LeakedViewControllerDetector)
 [![Catalyst compatible](https://img.shields.io/badge/iOSOnMac_|_Catalyst-critical)](https://swiftpackageindex.com/Janneman84/LeakedViewControllerDetector)

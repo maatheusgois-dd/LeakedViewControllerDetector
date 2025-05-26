@@ -1,0 +1,249 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_15.2.app/Contents/Developer
+
+jobs:
+  test:
+    name: Test on iOS ${{ matrix.ios-version }}
+    runs-on: macos-14
+    
+    strategy:
+      matrix:
+        ios-version: ['17.2', '16.4']
+        include:
+          - ios-version: '17.2'
+            xcode-version: '15.2'
+            simulator: 'iPhone 15'
+          - ios-version: '16.4'
+            xcode-version: '15.2'
+            simulator: 'iPhone 14'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: ${{ matrix.xcode-version }}
+    
+    - name: Cache Swift Package Manager
+      uses: actions/cache@v4
+      with:
+        path: |
+          .build
+          ~/Library/Caches/org.swift.swiftpm
+        key: ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}
+        restore-keys: |
+          ${{ runner.os }}-spm-
+    
+    - name: List available simulators
+      run: xcrun simctl list devices available
+    
+    - name: Build package
+      run: swift build -v
+    
+    - name: Run Swift Package tests
+      run: swift test -v --enable-code-coverage
+    
+    - name: Generate Xcode project
+      run: swift package generate-xcodeproj
+    
+    - name: Run Xcode tests on iOS Simulator
+      run: |
+        xcodebuild test \
+          -project LeakedViewControllerDetector.xcodeproj \
+          -scheme LeakedViewControllerDetector-Package \
+          -destination "platform=iOS Simulator,name=${{ matrix.simulator }},OS=${{ matrix.ios-version }}" \
+          -enableCodeCoverage YES \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO
+    
+    - name: Run tvOS tests
+      run: |
+        xcodebuild test \
+          -project LeakedViewControllerDetector.xcodeproj \
+          -scheme LeakedViewControllerDetector-Package \
+          -destination "platform=tvOS Simulator,name=Apple TV,OS=17.2" \
+          -enableCodeCoverage YES \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO
+    
+    - name: Generate code coverage report
+      run: |
+        xcrun llvm-cov export \
+          .build/debug/LeakedViewControllerDetectorPackageTests.xctest/Contents/MacOS/LeakedViewControllerDetectorPackageTests \
+          -instr-profile .build/debug/codecov/default.profdata \
+          -format="lcov" > coverage.lcov || true
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.lcov
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+        token: ${{ secrets.CODECOV_TOKEN }}
+
+  lint:
+    name: SwiftLint
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install SwiftLint
+      run: brew install swiftlint
+    
+    - name: Run SwiftLint
+      run: swiftlint lint --reporter github-actions-logging
+
+  swiftformat:
+    name: SwiftFormat
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '15.2'
+    
+    - name: Install SwiftFormat
+      run: |
+        brew install swiftformat
+    
+    - name: Check Swift formatting
+      run: |
+        echo "Checking Swift formatting with SwiftFormat..."
+        swiftformat --lint Sources/ Tests/
+    
+    - name: Format Swift code (dry run)
+      run: |
+        echo "Running SwiftFormat dry run to check for changes..."
+        swiftformat --dryrun --verbose Sources/ Tests/
+    
+    - name: Check for formatting changes
+      run: |
+        # Run SwiftFormat and capture output
+        if ! swiftformat --dryrun Sources/ Tests/ > /dev/null 2>&1; then
+          echo "❌ Code formatting issues found. Please run 'swiftformat Sources/ Tests/' locally."
+          echo "Or use the format script: ./scripts/format.sh"
+          swiftformat --dryrun --verbose Sources/ Tests/
+          exit 1
+        else
+          echo "✅ Code is properly formatted."
+        fi
+
+  package-validation:
+    name: Package Validation
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '15.2'
+    
+    - name: Validate Package.swift
+      run: swift package dump-package > /dev/null
+    
+    - name: Check package dependencies
+      run: swift package show-dependencies
+    
+    - name: Resolve package dependencies
+      run: swift package resolve
+    
+    - name: Build for release
+      run: swift build -c release
+
+  documentation:
+    name: Documentation Build
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '15.2'
+    
+    - name: Install DocC
+      run: |
+        swift package resolve
+        swift build
+    
+    - name: Build documentation
+      run: |
+        swift package generate-documentation --target LeakedViewControllerDetector || true
+        echo "Documentation build completed"
+
+  integration-test:
+    name: Integration Tests
+    runs-on: macos-14
+    needs: [test, lint, package-validation]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '15.2'
+    
+    - name: Create test app
+      run: |
+        mkdir -p TestApp
+        cd TestApp
+        cat > Package.swift << 'EOF'
+        // swift-tools-version:5.9
+        import PackageDescription
+        
+        let package = Package(
+            name: "TestApp",
+            platforms: [.iOS(.v13)],
+            dependencies: [
+                .package(path: "../")
+            ],
+            targets: [
+                .executableTarget(
+                    name: "TestApp",
+                    dependencies: ["LeakedViewControllerDetector"]
+                )
+            ]
+        )
+        EOF
+        
+        mkdir -p Sources/TestApp
+        cat > Sources/TestApp/main.swift << 'EOF'
+        import Foundation
+        import LeakedViewControllerDetector
+        
+        print("Integration test: LeakedViewControllerDetector imported successfully")
+        EOF
+    
+    - name: Build integration test
+      run: |
+        cd TestApp
+        swift build
+    
+    - name: Run integration test
+      run: |
+        cd TestApp
+        swift run TestApp 
