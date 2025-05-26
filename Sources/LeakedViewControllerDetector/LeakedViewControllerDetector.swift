@@ -12,9 +12,10 @@ Automatically detects and warns you whenever a ViewController in your app closes
 Use LeakedViewControllerDetector.onDetect() to start detecting leaks.
 */
 
+@MainActor
 public class LeakedViewControllerDetector {
     
-    fileprivate static var callback: ((UIViewController?, UIView?, String)->Bool?)?
+    fileprivate static var callback: (@Sendable (UIViewController?, UIView?, String)->Bool?)?
     fileprivate static var delay: Double = 1.0
     fileprivate static var warningWindow: UIWindow?
     fileprivate static var lastBackgroundedDate = Date(timeIntervalSince1970: 0)
@@ -25,7 +26,7 @@ public class LeakedViewControllerDetector {
      - Parameter detectionDelay: The time in seconds allowed for each ViewController or View to deinit itself after it has been closed/removed (i.e. grace period). If it or any of its subviews are still in memory (alive) after the delay the callback will be triggered. Increasing the delay may prevent certain false positives. The default 1.0s is recommended, though a tighter delay may be considered for debug builds.
      - Parameter callback: This will be triggered every time a ViewController closes or View is removed but it or one of its subviews don't deinit. It will trigger again once it does deinit (if ever). It either provides the ViewController or the View that has leaked and a warning message string that you can use to log. The provided ViewController and View will both be nil in case of a deinit warning. Return true to show an alert dialog with the message. Return nil if you want to prevent a future deinit of the ViewController or View from triggering the callback again (useful if you want to ignore warnings of certain ViewControllers/Views).
      */
-    public static func onDetect(detectionDelay: TimeInterval = 1.0, callback: @escaping (UIViewController?, UIView?, String)->Bool? ) {
+    public static func onDetect(detectionDelay: TimeInterval = 1.0, callback: @escaping @Sendable (UIViewController?, UIView?, String)->Bool? ) {
                
         UIViewController.lvcdSwizzleLifecycleMethods()
         self.delay = detectionDelay
@@ -166,10 +167,19 @@ fileprivate extension UIView {
             shapeLayer.fillColor = UIColor.init(white: 1-0.6*0.5, alpha: 1).cgColor
             checkerBoard.layer.addSublayer(shapeLayer)
         }
-        UIGraphicsBeginImageContextWithOptions(checkerBoard.bounds.size, false, 0)
-        checkerBoard.drawHierarchy(in: checkerBoard.bounds, afterScreenUpdates: true)
-        let checkerBoardImage = UIGraphicsGetImageFromCurrentImageContext() ?? UIImage()
-        UIGraphicsEndImageContext()
+        
+        let checkerBoardImage: UIImage
+        if #available(iOS 10.0, *) {
+            let renderer = UIGraphicsImageRenderer(size: checkerBoard.bounds.size)
+            checkerBoardImage = renderer.image { _ in
+                checkerBoard.drawHierarchy(in: checkerBoard.bounds, afterScreenUpdates: true)
+            }
+        } else {
+            UIGraphicsBeginImageContextWithOptions(checkerBoard.bounds.size, false, 0)
+            checkerBoard.drawHierarchy(in: checkerBoard.bounds, afterScreenUpdates: true)
+            checkerBoardImage = UIGraphicsGetImageFromCurrentImageContext() ?? UIImage()
+            UIGraphicsEndImageContext()
+        }
         
         let wasAlpha = alpha
         let wasHidden = isHidden
@@ -233,10 +243,18 @@ fileprivate extension UIView {
         let maxWidth: CGFloat = 240-(iosOnMac ? 12 : 0) //hard coded width for now
         let imageSize = container2.frame.width <= maxWidth ? container2.frame.size : CGSize(width: maxWidth, height: maxWidth * (container2.frame.height / container2.frame.width))
 
-        UIGraphicsBeginImageContextWithOptions(imageSize, false, 0)
-        container2.drawHierarchy(in: CGRect(x: 0, y: 0, width: imageSize.width, height: imageSize.height), afterScreenUpdates: true)
-        let image = UIGraphicsGetImageFromCurrentImageContext()
-        UIGraphicsEndImageContext()
+        let image: UIImage?
+        if #available(iOS 10.0, *) {
+            let imageRenderer = UIGraphicsImageRenderer(size: imageSize)
+            image = imageRenderer.image { _ in
+                container2.drawHierarchy(in: CGRect(x: 0, y: 0, width: imageSize.width, height: imageSize.height), afterScreenUpdates: true)
+            }
+        } else {
+            UIGraphicsBeginImageContextWithOptions(imageSize, false, 0)
+            container2.drawHierarchy(in: CGRect(x: 0, y: 0, width: imageSize.width, height: imageSize.height), afterScreenUpdates: true)
+            image = UIGraphicsGetImageFromCurrentImageContext()
+            UIGraphicsEndImageContext()
+        }
 
         //restore values just in case
         alpha = wasAlpha
@@ -383,6 +401,7 @@ fileprivate extension UIViewController {
         lvcdShowDetailViewController(vc, sender: sender) //run original implementation
     }
     
+    @MainActor
     static var lvcdMemoryCheckQueue = Set<ObjectIdentifier>()
         
     var lvcdRootParentViewController: UIViewController {
@@ -498,6 +517,7 @@ fileprivate extension UIViewController {
     }
     
     //call this if VC deinits, if memory leak was detected earlier it apparently resolved itself, so notify this:
+    @MainActor
     class func lvcdMemoryLeakResolved(memoryLeakDetectionDate: TimeInterval, errorMessage: String, objectIdentifier: Int, objectType: String, screenshot: UIImage?) {
 
         let interval = Date().timeIntervalSince1970 - memoryLeakDetectionDate
@@ -510,8 +530,10 @@ fileprivate extension UIViewController {
         }
     }
     
+    @MainActor
     static var lvcdAlertQueue = [LVCDAlertController]()
     
+    @MainActor
     class func lvcdShowWarningAlert(errorTitle: String?, errorMessage: String?, resolved: Bool = false, objectIdentifier: Int, screenshot: UIImage? = nil) {
 
         var iosOnMac = false
@@ -566,6 +588,7 @@ fileprivate extension UIViewController {
         lvcdShowWarningAlert(alert)
     }
     
+    @MainActor
     class func lvcdShowWarningAlert(_ alert: LVCDAlertController?) {
 
         guard let alert = alert else { return }
@@ -678,8 +701,9 @@ fileprivate extension UIViewController {
         }
     }
     
+    @MainActor
     class LVCDSplitViewAssociatedObject {
-        static var key = malloc(1)!
+        static nonisolated(unsafe) var key = malloc(1)!
         
         weak var splitViewController: UISplitViewController?
         weak var viewController: UIViewController? { didSet {
@@ -707,8 +731,9 @@ fileprivate extension NotificationCenter {
     static let lvcd = NotificationCenter()
 }
 
+@MainActor
 fileprivate class LVCDDeallocator {
-    static var key = malloc(1)!
+    static nonisolated(unsafe) var key = malloc(1)!
     
     var memoryLeakDetectionDate: TimeInterval = 0.0
     var errorMessage = ""
@@ -725,8 +750,10 @@ fileprivate class LVCDDeallocator {
     weak var weakView: UIView? { didSet {
         subviewObserver?.invalidate()
         subviewObserver = weakView?.layer.observe(\.sublayers, options: [.old, .new]) { [weak self] _, _ in
-            if let view = self?.weakView {
-                self?.subviews = view.subviews
+            DispatchQueue.main.async { [weak self] in
+                if let view = self?.weakView {
+                    self?.subviews = view.subviews
+                }
             }
         }
         //using observer allows to keep track of subviews during leak without themselves leaking
@@ -738,19 +765,31 @@ fileprivate class LVCDDeallocator {
     }
     
     deinit {
-        //ViewController
-        strongView?.checkForLeakedSubViews()
-        strongView = nil //not needed, but just for peace of mind
+        let strongView = self.strongView
+        let subviews = self.subviews
+        let objectIdentifier = self.objectIdentifier
+        let memoryLeakDetectionDate = self.memoryLeakDetectionDate
+        let errorMessage = self.errorMessage
+        let objectType = self.objectType
+        let screenshot = self.screenshot
         
-        //View
-        subviewObserver?.invalidate()
-        for subview in subviews ?? [] {
-            subview.checkForLeakedSubViews()
-        }
+        if strongView != nil || !(subviews ?? []).isEmpty || objectIdentifier != 0 {
+            DispatchQueue.main.async {
+                //ViewController
+                strongView?.checkForLeakedSubViews()
+                
+                //View
+                for subview in subviews ?? [] {
+                    subview.checkForLeakedSubViews()
+                }
 
-        if (objectIdentifier != 0) {
-            UIViewController.lvcdMemoryLeakResolved(memoryLeakDetectionDate: memoryLeakDetectionDate, errorMessage: errorMessage, objectIdentifier: objectIdentifier, objectType: objectType, screenshot: screenshot)
+                if (objectIdentifier != 0) {
+                    UIViewController.lvcdMemoryLeakResolved(memoryLeakDetectionDate: memoryLeakDetectionDate, errorMessage: errorMessage, objectIdentifier: objectIdentifier, objectType: objectType, screenshot: screenshot)
+                }
+            }
         }
+        
+        subviewObserver?.invalidate()
     }
 }
 
@@ -799,8 +838,8 @@ fileprivate extension String {
         } catch { return }
     }
     
-    private static var lvcdBundleName: String?
-    private static var lvcdModuleName: String?
+    private static nonisolated(unsafe) var lvcdBundleName: String?
+    private static nonisolated(unsafe) var lvcdModuleName: String?
     
     func lvcdRemoveBundleAndModuleName() -> String {
         Self.lvcdBundleName = Self.lvcdBundleName ?? Bundle.main.infoDictionary?["CFBundleName"] as? String
