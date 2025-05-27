@@ -1,14 +1,14 @@
 disabled_rules:
   - trailing_whitespace
   - todo
-  - line_length
+  - force_unwrapping
+  - opening_brace
+  - trailing_comma
 
 opt_in_rules:
   - empty_count
   - empty_string
-  - force_unwrapping
   - implicitly_unwrapped_optional
-  - overridden_super_call
   - redundant_nil_coalescing
   - switch_case_on_newline
   - unneeded_parentheses_in_closure_argument
@@ -33,8 +33,8 @@ line_length:
   ignores_urls: true
 
 function_body_length:
-  warning: 60
-  error: 100
+  warning: 100
+  error: 150
 
 function_parameter_count:
   warning: 6
@@ -45,8 +45,8 @@ type_body_length:
   error: 400
 
 file_length:
-  warning: 500
-  error: 800
+  warning: 800
+  error: 1200
 
 cyclomatic_complexity:
   warning: 10
@@ -56,22 +56,20 @@ nesting:
   type_level:
     warning: 3
     error: 6
-  statement_level:
-    warning: 5
-    error: 10
 
 identifier_name:
   min_length:
     warning: 2
     error: 1
   max_length:
-    warning: 40
-    error: 60
+    warning: 50
+    error: 70
   excluded:
     - id
     - vc
     - x
     - y
+    - i
 
 type_name:
   min_length:

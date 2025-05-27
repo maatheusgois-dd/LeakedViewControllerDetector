@@ -576,8 +576,9 @@ private extension UIViewController {
                             actions = "\(actions) \"\(action.title ?? "-")\","
                         }
 
-                        errorMessage =
-                            "\(errorMessage)\n title: \"\((alertVC.title ?? "") == "" ? "" : alertVC.title!)\";\nmessage: \"\((alertVC.message ?? "") == "" ? "" : alertVC.message!)\";\nactions: \(actions);"
+                        let title = (alertVC.title ?? "").isEmpty ? "" : alertVC.title!
+                        let message = (alertVC.message ?? "").isEmpty ? "" : alertVC.message!
+                        errorMessage = "\(errorMessage)\n title: \"\(title)\";\nmessage: \"\(message)\";\nactions: \(actions);"
 
                         if !(alertVC.textFields ?? []).isEmpty {
                             var tfs = ""
